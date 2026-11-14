@@ -114,6 +114,20 @@ type CGEventTapCallBack =
     unsafe extern "C" fn(*mut c_void, u32, CGEventRef, *mut c_void) -> CGEventRef;
 type CFRunLoopTimerCallBack = unsafe extern "C" fn(CFRunLoopTimerRef, *mut c_void);
 
+#[repr(C)]
+struct CFRunLoopSourceContext {
+    version: isize,
+    info: *mut c_void,
+    retain: *const c_void,
+    release: *const c_void,
+    copy_description: *const c_void,
+    equal: *const c_void,
+    hash: *const c_void,
+    schedule: *const c_void,
+    cancel: *const c_void,
+    perform: unsafe extern "C" fn(*mut c_void),
+}
+
 #[link(name = "CoreFoundation", kind = "framework")]
 extern "C" {
     static kCFRunLoopDefaultMode: CFStringRef;
@@ -156,6 +170,13 @@ extern "C" {
         ctx: *mut CFRunLoopTimerContext,
     ) -> CFRunLoopTimerRef;
     fn CFAbsoluteTimeGetCurrent() -> f64;
+    fn CFRunLoopSourceCreate(
+        alloc: CFTypeRef,
+        order: isize,
+        ctx: *mut CFRunLoopSourceContext,
+    ) -> CFRunLoopSourceRef;
+    fn CFRunLoopSourceSignal(src: CFRunLoopSourceRef);
+    fn CFRunLoopWakeUp(rl: CFRunLoopRef);
     fn CFMachPortCreateRunLoopSource(
         alloc: CFTypeRef,
         port: CFMachPortRef,
@@ -425,8 +446,22 @@ pub struct AxBackend {
     windows: HashMap<u64, Win>,
     /// Windows we parked off-screen for a hidden workspace.
     parked: HashSet<u64>,
-    chords: Vec<(i64, u64, Command)>,
+    chords: Vec<(i64, u64, Vec<Command>)>,
     tap: CFMachPortRef,
+    /// Signalled by `waker()` from other threads; its perform callback runs on the main loop.
+    wake_source: CFRunLoopSourceRef,
+}
+
+/// A CF object pointer that may cross threads (CFRunLoopSourceSignal/WakeUp are thread-safe).
+struct SendPtr(CFTypeRef);
+unsafe impl Send for SendPtr {}
+unsafe impl Sync for SendPtr {}
+
+impl SendPtr {
+    // A method (not field access) so closures capture the whole Send wrapper.
+    fn get(&self) -> CFTypeRef {
+        self.0
+    }
 }
 
 /// Raw notifications collected by C callbacks, translated by the backend.
@@ -436,8 +471,9 @@ enum Raw {
     Minimized(AXUIElementRef),
     Restored(AXUIElementRef),
     Focused(i32),
-    Hotkey(Command),
+    Hotkey(Vec<Command>),
     Rescan,
+    Wake,
 }
 
 /// The running context, reachable from C callbacks during `CFRunLoopRun`.
@@ -507,7 +543,7 @@ unsafe extern "C" fn tap_callback(
         .chords
         .iter()
         .find(|(k, f, _)| *k == code && *f == flags)
-        .map(|c| c.2);
+        .map(|c| c.2.clone());
     match hit {
         Some(cmd) => {
             dispatch(Raw::Hotkey(cmd));
@@ -519,6 +555,10 @@ unsafe extern "C" fn tap_callback(
 
 unsafe extern "C" fn timer_callback(_t: CFRunLoopTimerRef, _info: *mut c_void) {
     dispatch(Raw::Rescan);
+}
+
+unsafe extern "C" fn wake_callback(_info: *mut c_void) {
+    dispatch(Raw::Wake);
 }
 
 impl AxBackend {
@@ -545,6 +585,21 @@ impl AxBackend {
             parked: HashSet::new(),
             chords: vec![],
             tap: ptr::null(),
+            wake_source: unsafe {
+                let mut ctx = CFRunLoopSourceContext {
+                    version: 0,
+                    info: ptr::null_mut(),
+                    retain: ptr::null(),
+                    release: ptr::null(),
+                    copy_description: ptr::null(),
+                    equal: ptr::null(),
+                    hash: ptr::null(),
+                    schedule: ptr::null(),
+                    cancel: ptr::null(),
+                    perform: wake_callback,
+                };
+                CFRunLoopSourceCreate(ptr::null(), 0, &mut ctx)
+            },
         };
         if trusted {
             for pid in app_pids() {
@@ -711,7 +766,8 @@ impl AxBackend {
                 .collect::<Vec<_>>()
         };
         match raw {
-            Raw::Hotkey(c) => vec![Event::Command(c)],
+            Raw::Hotkey(c) => vec![Event::Commands(c)],
+            Raw::Wake => vec![Event::Wake],
             Raw::Created(pid, el) => self
                 .track_window(pid, el)
                 .map(|i| Event::WindowCreated(WindowId(i)))
@@ -883,13 +939,33 @@ impl Backend for AxBackend {
                     }
                 }
             }
+            Action::Close(w) => {
+                if let Some((_, el)) = get(w) {
+                    if let Some(button) = ax_copy(el, "AXCloseButton") {
+                        let press = CfStr::new("AXPress");
+                        unsafe {
+                            AXUIElementPerformAction(button, press.0);
+                            CFRelease(button);
+                        }
+                    }
+                }
+            }
             Action::Quit => unsafe { CFRunLoopStop(CFRunLoopGetMain()) },
         }
     }
 
+    fn waker(&self) -> Waker {
+        let src = SendPtr(self.wake_source);
+        let rl = SendPtr(unsafe { CFRunLoopGetMain() });
+        std::sync::Arc::new(move || unsafe {
+            CFRunLoopSourceSignal(src.get());
+            CFRunLoopWakeUp(rl.get());
+        })
+    }
+
     fn run(
         &mut self,
-        bindings: &[(Hotkey, Command)],
+        bindings: &[(Hotkey, Vec<Command>)],
         handler: &mut Handler<'_>,
     ) -> Result<(), String> {
         if !self.trusted {
@@ -900,7 +976,7 @@ impl Backend for AxBackend {
         self.chords = bindings
             .iter()
             .filter_map(|(h, c)| match key_code(&h.key) {
-                Some(k) => Some((k, chord_flags(h), *c)),
+                Some(k) => Some((k, chord_flags(h), c.clone())),
                 None => {
                     eprintln!("warning: unsupported key `{}`, binding skipped", h.key);
                     None
@@ -926,6 +1002,7 @@ impl Backend for AxBackend {
             }
             let tap_src = CFMachPortCreateRunLoopSource(ptr::null(), self.tap, 0);
             CFRunLoopAddSource(rl, tap_src, kCFRunLoopDefaultMode);
+            CFRunLoopAddSource(rl, self.wake_source, kCFRunLoopDefaultMode);
 
             let mut tctx = CFRunLoopTimerContext {
                 version: 0,
@@ -956,6 +1033,7 @@ impl Backend for AxBackend {
             CFRunLoopTimerInvalidate(timer);
             CFRelease(timer);
             CFRunLoopRemoveSource(rl, tap_src, kCFRunLoopDefaultMode);
+            CFRunLoopRemoveSource(rl, self.wake_source, kCFRunLoopDefaultMode);
             CFRelease(tap_src);
             CFMachPortInvalidate(self.tap);
             CFRelease(self.tap);

@@ -121,8 +121,11 @@ fn vk_code(key: &str) -> Option<u32> {
     })
 }
 
+const WM_WAKE: u32 = WM_APP + 1;
+
 pub struct Win32Backend {
     float_rules: Vec<String>,
+    thread_id: u32,
     /// Windows we hid for workspace switching. Their HIDE/SHOW events are ours, not the app's.
     hidden_by_us: HashSet<isize>,
     own_pid: u32,
@@ -133,6 +136,7 @@ impl Win32Backend {
         unsafe { SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) };
         Self {
             float_rules: vec![],
+            thread_id: unsafe { GetCurrentThreadId() },
             hidden_by_us: HashSet::new(),
             own_pid: unsafe { GetCurrentProcessId() },
         }
@@ -243,7 +247,7 @@ impl Win32Backend {
         }
     }
 
-    fn register_hotkeys(&self, bindings: &[(Hotkey, Command)]) -> Vec<i32> {
+    fn register_hotkeys(&self, bindings: &[(Hotkey, Vec<Command>)]) -> Vec<i32> {
         let mut ids = vec![];
         for (i, (hk, _)) in bindings.iter().enumerate() {
             let Some(vk) = vk_code(&hk.key) else {
@@ -324,13 +328,23 @@ impl Backend for Win32Backend {
                 self.hidden_by_us.remove(&(hwnd(w) as isize));
             }
             Action::Focus(w) => self.focus(hwnd(w)),
+            Action::Close(w) => unsafe {
+                PostMessageW(hwnd(w), WM_CLOSE, 0, 0);
+            },
             Action::Quit => unsafe { PostQuitMessage(0) },
         }
     }
 
+    fn waker(&self) -> Waker {
+        let tid = self.thread_id;
+        std::sync::Arc::new(move || unsafe {
+            PostThreadMessageW(tid, WM_WAKE, 0, 0);
+        })
+    }
+
     fn run(
         &mut self,
-        bindings: &[(Hotkey, Command)],
+        bindings: &[(Hotkey, Vec<Command>)],
         handler: &mut Handler<'_>,
     ) -> Result<(), String> {
         let hotkeys = self.register_hotkeys(bindings);
@@ -361,9 +375,11 @@ impl Backend for Win32Backend {
         'outer: while unsafe { GetMessageW(&mut msg, ptr::null_mut(), 0, 0) } > 0 {
             let mut events = vec![];
             if msg.message == WM_HOTKEY {
-                if let Some((_, cmd)) = bindings.get(msg.wParam) {
-                    events.push(Event::Command(*cmd));
+                if let Some((_, cmds)) = bindings.get(msg.wParam) {
+                    events.push(Event::Commands(cmds.clone()));
                 }
+            } else if msg.message == WM_WAKE {
+                events.push(Event::Wake);
             }
             for (ev, h) in QUEUE.with(|q| mem::take(&mut *q.borrow_mut())) {
                 events.extend(self.translate(ev, h));

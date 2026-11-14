@@ -17,6 +17,10 @@ mod windows;
 
 pub type Handler<'a> = dyn FnMut(Event) -> Vec<Action> + 'a;
 
+/// Wakes the backend's event loop from another thread; the loop then calls the handler with
+/// `Event::Wake`. Used by the IPC server.
+pub type Waker = std::sync::Arc<dyn Fn() + Send + Sync>;
+
 pub trait Backend {
     /// Usable area of the primary monitor, excluding taskbar / menu bar / dock.
     fn work_area(&self) -> Rect;
@@ -31,11 +35,14 @@ pub trait Backend {
     /// Carry out one action from the core.
     fn apply(&mut self, action: &Action);
 
+    /// A handle other threads can use to wake the event loop.
+    fn waker(&self) -> Waker;
+
     /// Register global hotkeys, then block in the OS event loop, feeding every event
     /// to `handler` and applying what it returns. Returns on `Action::Quit`.
     fn run(
         &mut self,
-        bindings: &[(Hotkey, Command)],
+        bindings: &[(Hotkey, Vec<Command>)],
         handler: &mut Handler<'_>,
     ) -> Result<(), String>;
 }
@@ -46,5 +53,5 @@ pub fn native() -> Box<dyn Backend> {
     #[cfg(target_os = "macos")]
     return Box::new(macos::AxBackend::new());
     #[allow(unreachable_code)]
-    Box::new(headless::Headless)
+    Box::new(headless::Headless::default())
 }

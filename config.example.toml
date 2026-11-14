@@ -1,30 +1,56 @@
-# Copy to ~/.config/tiler/config.toml (macOS) or %APPDATA%\tiler\config.toml (Windows).
+# tiler config. Copy to ~/.config/tiler/config.toml (macOS) or %APPDATA%\tiler\config.toml
+# (Windows). Bindings run i3 commands; several can be chained with `;`.
 
-gap = 8                 # pixels between windows and around the screen edge
-layout = "bsp"          # bsp | master-stack | monocle
-master_ratio = 0.55     # share of the screen for the first split / master column
-master_count = 1
-workspaces = 9
+gap = 8                               # pixels between windows and around the screen edge
+workspace_layout = "splith"           # splith | splitv | stacking | tabbed
+focus_wrapping = true
+workspace_auto_back_and_forth = false
 float_rules = ["Settings", "System Preferences", "Task Manager"]
 
-# "super" means Win on Windows and Cmd on macOS.
+# "alt" is i3's $mod here. "super" means Win on Windows and Cmd on macOS.
 [keybindings]
-"alt+j" = "focus-next"
-"alt+k" = "focus-prev"
-"alt+shift+j" = "swap-next"
-"alt+shift+k" = "swap-prev"
-"alt+enter" = "promote"
-"alt+l" = "grow-master"
-"alt+h" = "shrink-master"
-"alt+i" = "inc-master"
-"alt+d" = "dec-master"
-"alt+space" = "cycle-layout"
-"alt+t" = "toggle-float"
-"alt+r" = "retile"
-"alt+shift+q" = "quit"
-"alt+1" = "workspace 1"
-"alt+2" = "workspace 2"
-"alt+3" = "workspace 3"
-"alt+shift+1" = "move-to-workspace 1"
-"alt+shift+2" = "move-to-workspace 2"
-"alt+shift+3" = "move-to-workspace 3"
+# change focus
+"alt+h" = "focus left"
+"alt+j" = "focus down"
+"alt+k" = "focus up"
+"alt+l" = "focus right"
+"alt+a" = "focus parent"
+"alt+d" = "focus child"
+
+# move the focused window or container
+"alt+shift+h" = "move left"
+"alt+shift+j" = "move down"
+"alt+shift+k" = "move up"
+"alt+shift+l" = "move right"
+
+# split and layout
+"alt+b" = "split h"
+"alt+v" = "split v"
+"alt+s" = "layout stacking"
+"alt+w" = "layout tabbed"
+"alt+e" = "layout toggle split"
+"alt+f" = "fullscreen toggle"
+"alt+shift+space" = "floating toggle"
+
+# resize
+"alt+ctrl+h" = "resize shrink width 10 px or 5 ppt"
+"alt+ctrl+l" = "resize grow width 10 px or 5 ppt"
+"alt+ctrl+k" = "resize shrink height 10 px or 5 ppt"
+"alt+ctrl+j" = "resize grow height 10 px or 5 ppt"
+
+# workspaces
+"alt+1" = "workspace number 1"
+"alt+2" = "workspace number 2"
+"alt+3" = "workspace number 3"
+"alt+4" = "workspace number 4"
+"alt+5" = "workspace number 5"
+"alt+tab" = "workspace back_and_forth"
+"alt+shift+1" = "move container to workspace number 1"
+"alt+shift+2" = "move container to workspace number 2"
+"alt+shift+3" = "move container to workspace number 3"
+"alt+shift+4" = "move container to workspace number 4"
+"alt+shift+5" = "move container to workspace number 5"
+
+# session
+"alt+shift+q" = "kill"
+"alt+shift+e" = "exit"
