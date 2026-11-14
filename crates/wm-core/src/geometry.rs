@@ -57,7 +57,11 @@ impl Rect {
         (0..n)
             .map(|i| {
                 let y = self.y + step * i as i32;
-                let h = if i == n - 1 { self.y + self.h - y } else { step };
+                let h = if i == n - 1 {
+                    self.y + self.h - y
+                } else {
+                    step
+                };
                 Self::new(self.x, y, self.w, h)
             })
             .collect()

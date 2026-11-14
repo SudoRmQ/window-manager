@@ -1,4 +1,8 @@
-use crate::{geometry::Rect, layout::{self, LayoutParams}, WindowId};
+use crate::{
+    geometry::Rect,
+    layout::{self, LayoutParams},
+    WindowId,
+};
 
 /// An ordered list of tiled windows plus the layout that arranges them.
 #[derive(Debug, Clone, Default)]
@@ -10,7 +14,10 @@ pub struct Workspace {
 
 impl Workspace {
     pub fn new(layout: LayoutParams) -> Self {
-        Self { layout, ..Default::default() }
+        Self {
+            layout,
+            ..Default::default()
+        }
     }
 
     pub fn windows(&self) -> &[WindowId] {
@@ -36,7 +43,9 @@ impl Workspace {
     }
 
     pub fn remove(&mut self, id: WindowId) -> bool {
-        let Some(i) = self.windows.iter().position(|w| *w == id) else { return false };
+        let Some(i) = self.windows.iter().position(|w| *w == id) else {
+            return false;
+        };
         self.windows.remove(i);
         self.focused = match self.focused {
             _ if self.windows.is_empty() => None,

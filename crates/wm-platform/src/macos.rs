@@ -34,8 +34,8 @@ impl Backend for AxBackend {
     fn existing_windows(&self) -> Vec<WindowId> {
         todo!("AX window enumeration")
     }
-    fn matches_rule(&self, _: WindowId, _: &[String]) -> bool {
-        todo!("bundle id / kAXTitleAttribute")
+    fn set_float_rules(&mut self, _: &[String]) {
+        todo!("store rules; match bundle id / kAXTitleAttribute")
     }
     fn apply(&mut self, _: &Action) {
         todo!("AXUIElementSetAttributeValue position/size")

@@ -1,5 +1,8 @@
 use std::{env, fs, path::PathBuf};
-use wm_core::{config::Config, manager::{Action, Event, Manager}};
+use wm_core::{
+    config::Config,
+    manager::{Action, Event, Manager},
+};
 
 fn config_path() -> Option<PathBuf> {
     if let Some(p) = env::args().nth(1) {
@@ -33,12 +36,10 @@ fn main() {
     };
 
     let mut backend = wm_platform::native();
+    backend.set_float_rules(&config.float_rules);
     let mut manager = Manager::new(&config, backend.work_area());
 
     for w in backend.existing_windows() {
-        if backend.matches_rule(w, &config.float_rules) {
-            continue;
-        }
         for a in manager.handle(Event::WindowCreated(w)) {
             backend.apply(&a);
         }

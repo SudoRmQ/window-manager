@@ -24,7 +24,12 @@ pub struct LayoutParams {
 
 impl Default for LayoutParams {
     fn default() -> Self {
-        Self { kind: LayoutKind::Bsp, ratio: 0.5, master_count: 1, gap: 8 }
+        Self {
+            kind: LayoutKind::Bsp,
+            ratio: 0.5,
+            master_count: 1,
+            gap: 8,
+        }
     }
 }
 
@@ -85,7 +90,11 @@ mod tests {
     const SCREEN: Rect = Rect::new(0, 0, 1920, 1080);
 
     fn no_gap(kind: LayoutKind) -> LayoutParams {
-        LayoutParams { kind, gap: 0, ..Default::default() }
+        LayoutParams {
+            kind,
+            gap: 0,
+            ..Default::default()
+        }
     }
 
     fn total_area(rs: &[Rect]) -> i64 {
@@ -94,7 +103,11 @@ mod tests {
 
     #[test]
     fn single_window_fills_screen() {
-        for k in [LayoutKind::Bsp, LayoutKind::MasterStack, LayoutKind::Monocle] {
+        for k in [
+            LayoutKind::Bsp,
+            LayoutKind::MasterStack,
+            LayoutKind::Monocle,
+        ] {
             assert_eq!(compute(&no_gap(k), SCREEN, 1), vec![SCREEN]);
         }
     }
@@ -129,7 +142,11 @@ mod tests {
 
     #[test]
     fn gaps_are_uniform() {
-        let p = LayoutParams { kind: LayoutKind::MasterStack, gap: 10, ..Default::default() };
+        let p = LayoutParams {
+            kind: LayoutKind::MasterStack,
+            gap: 10,
+            ..Default::default()
+        };
         let rs = compute(&p, SCREEN, 2);
         assert_eq!(rs[0], Rect::new(10, 10, 945, 1060));
         assert_eq!(rs[1], Rect::new(965, 10, 945, 1060));
