@@ -1,0 +1,64 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, name: windows-x64 }
+          - { os: windows-latest, target: aarch64-pc-windows-msvc, name: windows-arm64 }
+          - { os: macos-latest, target: aarch64-apple-darwin, name: macos-apple-silicon }
+          - { os: macos-latest, target: x86_64-apple-darwin, name: macos-intel }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $dir = "tiler-${{ github.ref_name }}-${{ matrix.name }}"
+          New-Item -ItemType Directory $dir | Out-Null
+          Copy-Item target/${{ matrix.target }}/release/wm.exe, README.md, config.example.toml $dir
+          Compress-Archive -Path $dir -DestinationPath "$dir.zip"
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          dir="tiler-${{ github.ref_name }}-${{ matrix.name }}"
+          mkdir "$dir"
+          cp target/${{ matrix.target }}/release/wm README.md config.example.toml "$dir"
+          tar czf "$dir.tar.gz" "$dir"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: tiler-*.*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          cd dist && sha256sum * > SHA256SUMS.txt && cd ..
+          prerelease=""
+          case "$TAG" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" \
+            --title "tiler $TAG" --notes-file .github/release-notes.md $prerelease
