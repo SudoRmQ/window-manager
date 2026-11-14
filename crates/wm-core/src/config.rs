@@ -1,4 +1,7 @@
-use crate::{command::Command, layout::{LayoutKind, LayoutParams}};
+use crate::{
+    command::Command,
+    layout::{LayoutKind, LayoutParams},
+};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
@@ -36,7 +39,10 @@ impl Hotkey {
         if key.is_empty() {
             return Err(format!("missing key in `{s}`"));
         }
-        Ok(Self { mods, key: key.clone() })
+        Ok(Self {
+            mods,
+            key: key.clone(),
+        })
     }
 }
 
@@ -99,7 +105,8 @@ impl Config {
 
 impl Default for Config {
     fn default() -> Self {
-        Self::from_toml(include_str!("../../../config.example.toml")).expect("bundled config is valid")
+        Self::from_toml(include_str!("../../../config.example.toml"))
+            .expect("bundled config is valid")
     }
 }
 

@@ -31,9 +31,15 @@ impl FromStr for Command {
         let name = parts.next().ok_or("empty command")?;
         let arg = parts.next();
         let num = || -> Result<usize, String> {
-            let n: usize = arg.ok_or(format!("`{name}` needs a number"))?
-                .parse().map_err(|_| format!("bad number in `{s}`"))?;
-            if n == 0 { Err("workspaces are numbered from 1".into()) } else { Ok(n - 1) }
+            let n: usize = arg
+                .ok_or(format!("`{name}` needs a number"))?
+                .parse()
+                .map_err(|_| format!("bad number in `{s}`"))?;
+            if n == 0 {
+                Err("workspaces are numbered from 1".into())
+            } else {
+                Ok(n - 1)
+            }
         };
         Ok(match name {
             "focus-next" => Command::FocusNext,
@@ -70,7 +76,10 @@ mod tests {
     fn parses() {
         assert_eq!("focus-next".parse(), Ok(Command::FocusNext));
         assert_eq!("workspace 2".parse(), Ok(Command::Workspace(1)));
-        assert_eq!("layout monocle".parse(), Ok(Command::SetLayout(LayoutKind::Monocle)));
+        assert_eq!(
+            "layout monocle".parse(),
+            Ok(Command::SetLayout(LayoutKind::Monocle))
+        );
         assert!("workspace 0".parse::<Command>().is_err());
         assert!("explode".parse::<Command>().is_err());
     }

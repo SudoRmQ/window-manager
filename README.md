@@ -1,7 +1,19 @@
 # tiler — a cross-platform tiling window manager (Windows + macOS)
 
-Status: **scaffold**. The platform-independent core is implemented and tested; the
-Windows and macOS backends are typed stubs with an implementation plan in their doc comments.
+Status: **early**. The platform-independent core is implemented and tested, the Windows
+backend is implemented (single monitor), and the macOS backend is a typed stub with an
+implementation plan in its doc comments.
+
+## Trying it on Windows
+
+Download `wm-windows` from the latest CI run (or `cargo build --release`), then run
+`wm.exe` from a terminal. It tiles your open windows straight away. `Alt+Shift+Q` quits and
+brings back any windows hidden on other workspaces. Config is read from
+`%APPDATA%\tiler\config.toml` or a path passed as the first argument.
+
+Known gaps: one monitor only; hidden workspace windows disappear from the taskbar; apps
+running as administrator can't be moved unless `wm.exe` is also elevated; after changing
+screen resolution press `Alt+R` to retile.
 
 ## Architecture
 
@@ -33,7 +45,7 @@ cargo check --target aarch64-apple-darwin     # type-check the macOS build
 
 ## Roadmap
 
-1. Windows backend: discovery, event hook, placement, hotkeys (single monitor).
+1. ~~Windows backend: discovery, event hook, placement, hotkeys (single monitor).~~ Done.
 2. macOS backend: Accessibility permission, AX observers, placement, hotkeys.
 3. Float rules, minimised-window handling, DPI / invisible-border fixes.
 4. Multiple monitors (one workspace set per monitor).

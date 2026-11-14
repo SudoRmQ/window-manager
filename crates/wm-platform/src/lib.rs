@@ -9,11 +9,11 @@ use wm_core::{
     WindowId,
 };
 
+mod headless;
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "windows")]
 mod windows;
-mod headless;
 
 pub type Handler<'a> = dyn FnMut(Event) -> Vec<Action> + 'a;
 
@@ -24,15 +24,20 @@ pub trait Backend {
     /// Normal, visible, top-level windows that should be managed at startup.
     fn existing_windows(&self) -> Vec<WindowId>;
 
-    /// Whether a window matches a float rule (class name / bundle id / title).
-    fn matches_rule(&self, id: WindowId, rules: &[String]) -> bool;
+    /// Windows matching these rules (class name / bundle id, or a substring of the title)
+    /// are never reported as created, so they stay floating. Call before anything else.
+    fn set_float_rules(&mut self, rules: &[String]);
 
     /// Carry out one action from the core.
     fn apply(&mut self, action: &Action);
 
     /// Register global hotkeys, then block in the OS event loop, feeding every event
     /// to `handler` and applying what it returns. Returns on `Action::Quit`.
-    fn run(&mut self, bindings: &[(Hotkey, Command)], handler: &mut Handler<'_>) -> Result<(), String>;
+    fn run(
+        &mut self,
+        bindings: &[(Hotkey, Command)],
+        handler: &mut Handler<'_>,
+    ) -> Result<(), String>;
 }
 
 pub fn native() -> Box<dyn Backend> {

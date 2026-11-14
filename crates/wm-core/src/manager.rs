@@ -35,7 +35,9 @@ pub struct Manager {
 impl Manager {
     pub fn new(config: &Config, work_area: Rect) -> Self {
         Self {
-            workspaces: (0..config.workspaces).map(|_| Workspace::new(config.layout)).collect(),
+            workspaces: (0..config.workspaces)
+                .map(|_| Workspace::new(config.layout))
+                .collect(),
             active: 0,
             floating: HashSet::new(),
             work_area,
@@ -55,7 +57,12 @@ impl Manager {
     }
 
     fn retile(&self, out: &mut Vec<Action>) {
-        out.extend(self.active().arrange(self.work_area).into_iter().map(|(w, r)| Action::Place(w, r)));
+        out.extend(
+            self.active()
+                .arrange(self.work_area)
+                .into_iter()
+                .map(|(w, r)| Action::Place(w, r)),
+        );
     }
 
     fn focus_action(&self, out: &mut Vec<Action>) {
@@ -114,7 +121,9 @@ impl Manager {
                 self.retile(out);
             }
             GrowMaster | ShrinkMaster => {
-                self.ws().layout.adjust_ratio(if c == GrowMaster { 0.05 } else { -0.05 });
+                self.ws()
+                    .layout
+                    .adjust_ratio(if c == GrowMaster { 0.05 } else { -0.05 });
                 self.retile(out);
             }
             IncMasterCount => {
@@ -180,7 +189,15 @@ mod tests {
     }
 
     fn placed(a: &[Action]) -> Vec<WindowId> {
-        a.iter().filter_map(|x| if let Action::Place(w, _) = x { Some(*w) } else { None }).collect()
+        a.iter()
+            .filter_map(|x| {
+                if let Action::Place(w, _) = x {
+                    Some(*w)
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     #[test]
