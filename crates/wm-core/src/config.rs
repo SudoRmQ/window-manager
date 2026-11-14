@@ -1,6 +1,6 @@
 use crate::{
-    command::Command,
-    layout::{LayoutKind, LayoutParams},
+    command::{self, Command},
+    tree::{Layout, TreeOptions},
 };
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -29,10 +29,10 @@ impl Hotkey {
         let (key, mod_parts) = parts.split_last().ok_or("empty hotkey")?;
         for m in mod_parts {
             match m.as_str() {
-                "alt" | "opt" | "option" => mods.alt = true,
+                "alt" | "opt" | "option" | "mod1" => mods.alt = true,
                 "ctrl" | "control" => mods.ctrl = true,
                 "shift" => mods.shift = true,
-                "super" | "win" | "cmd" | "command" => mods.super_ = true,
+                "super" | "win" | "cmd" | "command" | "mod4" => mods.super_ = true,
                 other => return Err(format!("unknown modifier `{other}` in `{s}`")),
             }
         }
@@ -50,11 +50,9 @@ impl Hotkey {
 #[serde(default, deny_unknown_fields)]
 struct RawConfig {
     gap: i32,
-    layout: LayoutKind,
-    master_ratio: f32,
-    master_count: usize,
-    workspaces: usize,
-    /// Window classes / app bundle ids / titles that should float instead of tile.
+    workspace_layout: Layout,
+    focus_wrapping: bool,
+    workspace_auto_back_and_forth: bool,
     float_rules: Vec<String>,
     keybindings: BTreeMap<String, String>,
 }
@@ -63,10 +61,9 @@ impl Default for RawConfig {
     fn default() -> Self {
         Self {
             gap: 8,
-            layout: LayoutKind::Bsp,
-            master_ratio: 0.55,
-            master_count: 1,
-            workspaces: 9,
+            workspace_layout: Layout::Splith,
+            focus_wrapping: true,
+            workspace_auto_back_and_forth: false,
             float_rules: vec![],
             keybindings: BTreeMap::new(),
         }
@@ -75,10 +72,10 @@ impl Default for RawConfig {
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    pub layout: LayoutParams,
-    pub workspaces: usize,
+    pub gap: i32,
+    pub tree: TreeOptions,
     pub float_rules: Vec<String>,
-    pub bindings: Vec<(Hotkey, Command)>,
+    pub bindings: Vec<(Hotkey, Vec<Command>)>,
 }
 
 impl Config {
@@ -87,16 +84,18 @@ impl Config {
         let bindings = raw
             .keybindings
             .iter()
-            .map(|(k, c)| Ok((Hotkey::parse(k)?, c.parse()?)))
+            .map(|(k, c)| {
+                let cmds = command::parse(c).map_err(|e| format!("binding `{k}`: {e}"))?;
+                Ok((Hotkey::parse(k)?, cmds))
+            })
             .collect::<Result<_, String>>()?;
         Ok(Self {
-            layout: LayoutParams {
-                kind: raw.layout,
-                ratio: raw.master_ratio.clamp(0.1, 0.9),
-                master_count: raw.master_count.max(1),
-                gap: raw.gap.max(0),
+            gap: raw.gap.max(0),
+            tree: TreeOptions {
+                default_layout: raw.workspace_layout,
+                focus_wrapping: raw.focus_wrapping,
+                auto_back_and_forth: raw.workspace_auto_back_and_forth,
             },
-            workspaces: raw.workspaces.clamp(1, 20),
             float_rules: raw.float_rules,
             bindings,
         })
@@ -117,7 +116,7 @@ mod tests {
     #[test]
     fn bundled_example_parses() {
         let c = Config::default();
-        assert!(c.bindings.len() > 10);
+        assert!(c.bindings.len() > 20);
     }
 
     #[test]

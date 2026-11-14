@@ -1,10 +1,21 @@
-//! Fallback for unsupported OSes (and CI): no real windows, just prints actions.
-//! Lets the binary and the core be exercised on Linux.
+//! Fallback for OSes without a backend (Linux, CI). There is no window system: it pretends
+//! three windows exist and just prints actions, but it runs a real event loop, so the IPC
+//! server and `wm msg` can be exercised end to end.
 
 use super::*;
+use std::sync::{mpsc, Arc, Mutex};
 
-#[derive(Default)]
-pub struct Headless;
+pub struct Headless {
+    tx: mpsc::Sender<()>,
+    rx: mpsc::Receiver<()>,
+}
+
+impl Default for Headless {
+    fn default() -> Self {
+        let (tx, rx) = mpsc::channel();
+        Self { tx, rx }
+    }
+}
 
 impl Backend for Headless {
     fn work_area(&self) -> Rect {
@@ -17,17 +28,24 @@ impl Backend for Headless {
     fn apply(&mut self, action: &Action) {
         println!("{action:?}");
     }
-    fn run(&mut self, _: &[(Hotkey, Command)], handler: &mut Handler<'_>) -> Result<(), String> {
-        println!("headless backend: no window system on this OS, running a short demo");
-        for c in [
-            Command::CycleLayout,
-            Command::FocusNext,
-            Command::Promote,
-            Command::Quit,
-        ] {
-            println!("> {c:?}");
-            for a in handler(Event::Command(c)) {
+    fn waker(&self) -> Waker {
+        let tx = Mutex::new(self.tx.clone());
+        Arc::new(move || {
+            let _ = tx.lock().map(|t| t.send(()));
+        })
+    }
+    fn run(
+        &mut self,
+        _: &[(Hotkey, Vec<Command>)],
+        handler: &mut Handler<'_>,
+    ) -> Result<(), String> {
+        println!("headless backend: no window system on this OS; drive it with `wm msg`");
+        while self.rx.recv().is_ok() {
+            for a in handler(Event::Wake) {
                 self.apply(&a);
+                if a == Action::Quit {
+                    return Ok(());
+                }
             }
         }
         Ok(())
