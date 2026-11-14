@@ -1,0 +1,8 @@
+[package]
+name = "wm"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+wm-core = { path = "../wm-core" }
+wm-platform = { path = "../wm-platform" }

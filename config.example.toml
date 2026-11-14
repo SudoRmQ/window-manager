@@ -1,0 +1,30 @@
+# Copy to ~/.config/tiler/config.toml (macOS) or %APPDATA%\tiler\config.toml (Windows).
+
+gap = 8                 # pixels between windows and around the screen edge
+layout = "bsp"          # bsp | master-stack | monocle
+master_ratio = 0.55     # share of the screen for the first split / master column
+master_count = 1
+workspaces = 9
+float_rules = ["Settings", "System Preferences", "Task Manager"]
+
+# "super" means Win on Windows and Cmd on macOS.
+[keybindings]
+"alt+j" = "focus-next"
+"alt+k" = "focus-prev"
+"alt+shift+j" = "swap-next"
+"alt+shift+k" = "swap-prev"
+"alt+enter" = "promote"
+"alt+l" = "grow-master"
+"alt+h" = "shrink-master"
+"alt+i" = "inc-master"
+"alt+d" = "dec-master"
+"alt+space" = "cycle-layout"
+"alt+t" = "toggle-float"
+"alt+r" = "retile"
+"alt+shift+q" = "quit"
+"alt+1" = "workspace 1"
+"alt+2" = "workspace 2"
+"alt+3" = "workspace 3"
+"alt+shift+1" = "move-to-workspace 1"
+"alt+shift+2" = "move-to-workspace 2"
+"alt+shift+3" = "move-to-workspace 3"
