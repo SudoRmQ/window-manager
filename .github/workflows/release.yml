@@ -1,7 +1,19 @@
 name: Release
+
+# Three ways to cut a release:
+#   - push a tag:              git tag v1.2.3 && git push origin v1.2.3
+#   - push a release branch:   git push origin HEAD:release/v1.2.3   (the tag is created for you)
+#   - run it from the Actions tab (workflow_dispatch) with a version
+# Versions containing a hyphen (v1.2.3-beta) are published as pre-releases.
 on:
   push:
     tags: ["v*"]
+    branches: ["release/v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag to create, e.g. v0.2.0 or v0.2.0-beta"
+        required: true
 
 permissions:
   contents: write
@@ -19,6 +31,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - id: v
+        shell: bash
+        run: |
+          v="${{ inputs.version }}"
+          [ -n "$v" ] || v="${GITHUB_REF_NAME#release/}"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -27,21 +45,23 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $dir = "tiler-${{ github.ref_name }}-${{ matrix.name }}"
+          $dir = "tiler-${{ steps.v.outputs.version }}-${{ matrix.name }}"
           New-Item -ItemType Directory $dir | Out-Null
           Copy-Item target/${{ matrix.target }}/release/wm.exe, README.md, config.example.toml $dir
           Compress-Archive -Path $dir -DestinationPath "$dir.zip"
       - name: Package (macOS)
         if: runner.os == 'macOS'
         run: |
-          dir="tiler-${{ github.ref_name }}-${{ matrix.name }}"
+          dir="tiler-${{ steps.v.outputs.version }}-${{ matrix.name }}"
           mkdir "$dir"
           cp target/${{ matrix.target }}/release/wm README.md config.example.toml "$dir"
           tar czf "$dir.tar.gz" "$dir"
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
-          path: tiler-*.*
+          path: |
+            tiler-*.zip
+            tiler-*.tar.gz
 
   release:
     needs: build
@@ -55,10 +75,11 @@ jobs:
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
         run: |
-          cd dist && sha256sum * > SHA256SUMS.txt && cd ..
+          v="${{ inputs.version }}"
+          [ -n "$v" ] || v="${GITHUB_REF_NAME#release/}"
+          (cd dist && sha256sum * > SHA256SUMS.txt)
           prerelease=""
-          case "$TAG" in *-*) prerelease="--prerelease" ;; esac
-          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" \
-            --title "tiler $TAG" --notes-file .github/release-notes.md $prerelease
+          case "$v" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "$v" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "tiler $v" --notes-file .github/release-notes.md $prerelease
